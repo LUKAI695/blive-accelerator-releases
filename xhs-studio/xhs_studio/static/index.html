@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>XHS Studio · 小红书运营工作台</title>
+<style>
+  :root {
+    --bg: #f6f6f7; --panel: #fff; --text: #1f2328; --muted: #6b7280; --line: #e5e7eb;
+    --brand: #ff2442; --brand-soft: #fff0f2; --ok: #16a34a; --warn: #d97706; --err: #dc2626; --info: #2563eb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #111214; --panel: #1b1c1f; --text: #e8e8ea; --muted: #9ca3af; --line: #2c2e33; --brand-soft: #3a1219; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); }
+  header { display: flex; align-items: center; gap: 24px; padding: 0 24px; height: 56px; background: var(--panel); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header h1 { font-size: 16px; margin: 0; } header h1 span { color: var(--brand); }
+  nav { display: flex; gap: 4px; }
+  nav button { background: none; border: 0; padding: 8px 14px; border-radius: 8px; color: var(--muted); cursor: pointer; font-size: 14px; }
+  nav button.active { background: var(--brand-soft); color: var(--brand); font-weight: 600; }
+  main { max-width: 1100px; margin: 0 auto; padding: 24px 16px 80px; }
+  .row { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+  .spacer { flex: 1; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); margin-top: 16px; }
+  .btn { border: 1px solid var(--line); background: var(--panel); color: var(--text); padding: 6px 14px; border-radius: 8px; cursor: pointer; font-size: 13px; }
+  .btn:hover { border-color: var(--muted); }
+  .btn.primary { background: var(--brand); color: #fff; border-color: var(--brand); }
+  .btn.danger { color: var(--err); }
+  .btn:disabled { opacity: .5; cursor: not-allowed; }
+  .badge { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 999px; background: var(--line); color: var(--muted); }
+  .badge.logged_in, .badge.published { background: #dcfce7; color: var(--ok); }
+  .badge.logged_out, .badge.failed { background: #fee2e2; color: var(--err); }
+  .badge.logging_in, .badge.publishing { background: #fef3c7; color: var(--warn); }
+  .badge.scheduled { background: #dbeafe; color: var(--info); }
+  @media (prefers-color-scheme: dark) { .badge.logged_in, .badge.published, .badge.logged_out, .badge.failed, .badge.logging_in, .badge.publishing, .badge.scheduled { background: transparent; border: 1px solid currentColor; } }
+  .muted { color: var(--muted); font-size: 12px; }
+  .post { display: flex; gap: 12px; }
+  .post img.cover { width: 84px; height: 112px; object-fit: cover; border-radius: 8px; background: var(--line); flex: none; }
+  .post .title { font-weight: 600; margin: 0 0 4px; }
+  .post .body { color: var(--muted); font-size: 12px; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .err { color: var(--err); font-size: 12px; word-break: break-all; }
+  .filters button { font-size: 12px; }
+  .stats { display: flex; gap: 12px; flex-wrap: wrap; }
+  .stat { flex: 1; min-width: 120px; } .stat b { font-size: 22px; display: block; }
+  dialog { border: 0; border-radius: 14px; padding: 0; width: min(760px, 96vw); background: var(--panel); color: var(--text); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  .dlg-head { padding: 16px 20px; border-bottom: 1px solid var(--line); font-weight: 600; }
+  .dlg-body { padding: 16px 20px; display: grid; gap: 12px; max-height: 70vh; overflow: auto; }
+  .dlg-foot { padding: 12px 20px; border-top: 1px solid var(--line); display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  label { display: grid; gap: 4px; font-size: 13px; }
+  input, textarea, select { font: inherit; padding: 8px 10px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); color: var(--text); width: 100%; }
+  textarea { min-height: 200px; resize: vertical; }
+  .count { justify-self: end; font-size: 12px; color: var(--muted); } .count.over { color: var(--err); }
+  .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+  .thumb { position: relative; } .thumb img { width: 72px; height: 96px; object-fit: cover; border-radius: 6px; }
+  .thumb button { position: absolute; top: 2px; right: 2px; border: 0; border-radius: 50%; width: 20px; height: 20px; background: rgba(0,0,0,.6); color: #fff; cursor: pointer; line-height: 1; }
+  .ai-box { background: var(--brand-soft); border-radius: 10px; padding: 12px; display: grid; gap: 8px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  td.level-error { color: var(--err); } td.level-warn { color: var(--warn); }
+  #toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); background: #111; color: #fff; padding: 10px 16px; border-radius: 8px; opacity: 0; transition: opacity .2s; pointer-events: none; max-width: 90vw; }
+  #toast.show { opacity: .92; }
+  .hidden { display: none !important; }
+  .empty { text-align: center; color: var(--muted); padding: 40px 0; }
+</style>
+</head>
+<body>
+<header>
+  <h1><span>●</span> XHS Studio</h1>
+  <nav>
+    <button data-tab="posts" class="active">内容</button>
+    <button data-tab="accounts">账号</button>
+    <button data-tab="logs">日志</button>
+  </nav>
+</header>
+
+<main>
+  <!-- 内容 -->
+  <section id="tab-posts">
+    <div class="stats" id="stats"></div>
+    <div class="row" style="margin-top:16px">
+      <div class="row filters" id="filters"></div>
+      <div class="spacer"></div>
+      <button class="btn primary" id="new-post">＋ 新建笔记</button>
+    </div>
+    <div class="grid" id="post-list"></div>
+  </section>
+
+  <!-- 账号 -->
+  <section id="tab-accounts" class="hidden">
+    <div class="card">
+      <form class="row" id="account-form">
+        <input name="name" placeholder="账号备注名（如：主号-美食）" required style="max-width:260px">
+        <input name="note" placeholder="说明（可选）" style="max-width:260px">
+        <button class="btn primary">添加账号</button>
+      </form>
+      <p class="muted">添加后点击“扫码登录”，会弹出浏览器窗口，用小红书 App 扫码即可。登录状态保存在本机，不保存密码。</p>
+      <p class="muted" id="limits"></p>
+    </div>
+    <div class="grid" id="account-list"></div>
+  </section>
+
+  <!-- 日志 -->
+  <section id="tab-logs" class="hidden">
+    <div class="card"><table><thead><tr><th style="width:170px">时间</th><th>内容</th></tr></thead><tbody id="log-list"></tbody></table></div>
+  </section>
+</main>
+
+<dialog id="editor">
+  <form method="dialog" id="post-form">
+    <div class="dlg-head" id="editor-title">新建笔记</div>
+    <div class="dlg-body">
+      <details class="ai-box">
+        <summary>✨ AI 写文案（Claude）</summary>
+        <label>主题<input id="ai-topic" placeholder="例：周末在杭州一日 citywalk 路线"></label>
+        <label>账号风格 / 目标读者<input id="ai-style" placeholder="例：轻松日常、面向上班族"></label>
+        <label>必须包含的要点<textarea id="ai-notes" style="min-height:60px" placeholder="真实的经历、地点、价格等（AI 不会编造事实）"></textarea></label>
+        <div class="row"><button type="button" class="btn" id="ai-run">生成草稿</button><span class="muted">生成后会填入下方，请务必人工修改核对。含 AI 内容发布时请按平台要求声明。</span></div>
+      </details>
+      <label>发布账号<select name="account_id" id="f-account"></select></label>
+      <label>标题<input name="title" id="f-title" autocomplete="off"><span class="count" id="c-title"></span></label>
+      <label>正文<textarea name="body" id="f-body"></textarea><span class="count" id="c-body"></span></label>
+      <label>话题标签（逗号或空格分隔）<input name="tags" id="f-tags" placeholder="旅行 杭州 citywalk"></label>
+      <div>
+        <div class="row"><span>图片</span><span class="muted" id="c-images"></span><div class="spacer"></div>
+          <label class="btn" style="display:inline-block">上传图片<input type="file" id="f-files" accept=".jpg,.jpeg,.png,.webp" multiple hidden></label></div>
+        <div class="thumbs" id="thumbs" style="margin-top:8px"></div>
+        <p class="muted">第一张为封面，点击任意图片可将其设为封面。</p>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn" id="save-draft">保存草稿</button>
+      <input type="datetime-local" id="f-when" style="width:auto">
+      <button type="button" class="btn" id="save-schedule">定时发布</button>
+      <button type="button" class="btn primary" id="save-publish">立即发布</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn" id="close-editor">关闭</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast"></div>
+
+<script>
+const STATUS = { draft: "草稿", scheduled: "定时中", publishing: "发布中", published: "已发布", failed: "失败",
+  unknown: "未检查", logged_in: "已登录", logged_out: "未登录", logging_in: "等待扫码" };
+let settings = {}, accounts = [], posts = [], filter = "", editing = null, images = [];
+
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmt = (iso) => iso ? new Date(iso).toLocaleString("zh-CN", { hour12: false }) : "";
+function toast(msg) { const t = $("#toast"); t.textContent = msg; t.classList.add("show"); clearTimeout(t._h); t._h = setTimeout(() => t.classList.remove("show"), 3500); }
+
+async function api(path, opts = {}) {
+  const init = { ...opts };
+  if (opts.json !== undefined) { init.body = JSON.stringify(opts.json); init.headers = { "Content-Type": "application/json" }; }
+  const res = await fetch(path, init);
+  if (res.status === 204) return null;
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail || data));
+  return data;
+}
+
+// ---------- tabs ----------
+document.querySelectorAll("nav button").forEach((b) => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach((x) => x.classList.toggle("active", x === b));
+  ["posts", "accounts", "logs"].forEach((t) => $("#tab-" + t).classList.toggle("hidden", t !== b.dataset.tab));
+  refresh();
+});
+
+// ---------- render ----------
+function renderStats(stats) {
+  const p = stats.posts;
+  $("#stats").innerHTML = [["草稿", p.draft], ["定时中", p.scheduled], ["已发布", p.published], ["失败", p.failed], ["账号", stats.accounts]]
+    .map(([k, v]) => `<div class="card stat"><span class="muted">${k}</span><b>${v}</b></div>`).join("");
+  const opts = [["", "全部"], ["draft", "草稿"], ["scheduled", "定时中"], ["publishing", "发布中"], ["published", "已发布"], ["failed", "失败"]];
+  $("#filters").innerHTML = opts.map(([v, l]) => `<button class="btn ${filter === v ? "primary" : ""}" data-f="${v}">${l}</button>`).join("");
+  $("#filters").querySelectorAll("button").forEach((b) => b.onclick = () => { filter = b.dataset.f; refresh(); });
+}
+
+function accountName(id) { return accounts.find((a) => a.id === id)?.name || "未选择账号"; }
+
+function renderPosts() {
+  const el = $("#post-list");
+  if (!posts.length) { el.innerHTML = `<div class="empty card" style="grid-column:1/-1">还没有笔记，点击右上角“新建笔记”开始</div>`; return; }
+  el.innerHTML = posts.map((p) => `
+    <div class="card post">
+      ${p.images[0] ? `<img class="cover" src="/uploads/${esc(p.images[0])}">` : `<div class="cover" style="width:84px;height:112px;border-radius:8px;background:var(--line)"></div>`}
+      <div style="flex:1;min-width:0">
+        <div class="row"><span class="badge ${p.status}">${STATUS[p.status]}</span><span class="muted">${esc(accountName(p.account_id))}</span></div>
+        <p class="title">${esc(p.title) || "<span class=muted>（无标题）</span>"}</p>
+        <div class="body">${esc(p.body)}</div>
+        <div class="muted">${p.status === "scheduled" ? "计划于 " + fmt(p.scheduled_at) : p.published_at ? "发布于 " + fmt(p.published_at) : "更新于 " + fmt(p.updated_at)} · ${p.images.length} 图</div>
+        ${p.error ? `<div class="err">${esc(p.error)}</div>` : ""}
+        <div class="row" style="margin-top:6px">
+          ${["draft", "failed", "scheduled"].includes(p.status) ? `<button class="btn" data-edit="${p.id}">编辑</button>` : ""}
+          ${["scheduled", "failed"].includes(p.status) ? `<button class="btn" data-cancel="${p.id}">撤回为草稿</button>` : ""}
+          ${p.status !== "publishing" ? `<button class="btn danger" data-del="${p.id}">删除</button>` : ""}
+        </div>
+      </div>
+    </div>`).join("");
+  el.querySelectorAll("[data-edit]").forEach((b) => b.onclick = () => openEditor(posts.find((p) => p.id == b.dataset.edit)));
+  el.querySelectorAll("[data-cancel]").forEach((b) => b.onclick = () => act(() => api(`/api/posts/${b.dataset.cancel}/cancel`, { method: "POST" }), "已撤回为草稿"));
+  el.querySelectorAll("[data-del]").forEach((b) => b.onclick = () => confirm("确定删除这篇笔记？") && act(() => api(`/api/posts/${b.dataset.del}`, { method: "DELETE" }), "已删除"));
+}
+
+function renderAccounts() {
+  $("#limits").textContent = `发布节奏限制：同一账号两次发布至少间隔 ${settings.min_interval_minutes} 分钟，24 小时内最多 ${settings.daily_limit} 篇（可通过环境变量调整）。数据目录：${settings.data_dir}`;
+  const el = $("#account-list");
+  if (!accounts.length) { el.innerHTML = `<div class="empty card" style="grid-column:1/-1">还没有账号</div>`; return; }
+  el.innerHTML = accounts.map((a) => `
+    <div class="card">
+      <div class="row"><b>${esc(a.name)}</b><span class="badge ${a.status}">${STATUS[a.status] || a.status}</span></div>
+      <div class="muted">${esc(a.note)}</div>
+      <div class="muted">上次检查：${fmt(a.last_checked) || "—"}</div>
+      <div class="row" style="margin-top:8px">
+        <button class="btn primary" data-login="${a.id}" ${a.status === "logging_in" ? "disabled" : ""}>扫码登录</button>
+        <button class="btn" data-check="${a.id}">检查登录状态</button>
+        <button class="btn danger" data-delacc="${a.id}">删除</button>
+      </div>
+    </div>`).join("");
+  el.querySelectorAll("[data-login]").forEach((b) => b.onclick = () => act(() => api(`/api/accounts/${b.dataset.login}/login`, { method: "POST" }), "已打开浏览器窗口，请用小红书 App 扫码"));
+  el.querySelectorAll("[data-check]").forEach((b) => b.onclick = () => { b.disabled = true; b.textContent = "检查中…"; act(() => api(`/api/accounts/${b.dataset.check}/check`, { method: "POST" }), "检查完成"); });
+  el.querySelectorAll("[data-delacc]").forEach((b) => b.onclick = () => confirm("删除账号不会删除笔记，确定？") && act(() => api(`/api/accounts/${b.dataset.delacc}`, { method: "DELETE" }), "已删除"));
+}
+
+async function renderLogs() {
+  const logs = await api("/api/logs?limit=300");
+  $("#log-list").innerHTML = logs.map((l) => `<tr><td class="muted">${fmt(l.created_at)}</td><td class="level-${l.level}">${esc(l.message)}</td></tr>`).join("")
+    || `<tr><td colspan="2" class="empty">暂无日志</td></tr>`;
+}
+
+async function act(fn, okMsg) {
+  try { await fn(); if (okMsg) toast(okMsg); } catch (e) { toast(e.message); }
+  refresh();
+}
+
+async function refresh() {
+  try {
+    const [st, acc, ps] = await Promise.all([api("/api/stats"), api("/api/accounts"), api("/api/posts" + (filter ? "?status=" + filter : ""))]);
+    accounts = acc; posts = ps;
+    renderStats(st); renderPosts(); renderAccounts();
+    if (!$("#tab-logs").classList.contains("hidden")) await renderLogs();
+  } catch (e) { toast("刷新失败：" + e.message); }
+}
+
+// ---------- editor ----------
+function updateCounts() {
+  const t = $("#f-title").value.length, b = $("#f-body").value.length;
+  $("#c-title").textContent = `${t}/${settings.title_max}`; $("#c-title").classList.toggle("over", t > settings.title_max);
+  $("#c-body").textContent = `${b}/${settings.body_max}`; $("#c-body").classList.toggle("over", b > settings.body_max);
+  $("#c-images").textContent = `${images.length}/${settings.images_max}`;
+}
+function renderThumbs() {
+  $("#thumbs").innerHTML = images.map((n, i) => `<div class="thumb"><img src="/uploads/${esc(n)}" data-i="${i}" title="设为封面"><button type="button" data-rm="${i}">×</button></div>`).join("");
+  $("#thumbs").querySelectorAll("[data-rm]").forEach((b) => b.onclick = () => { images.splice(+b.dataset.rm, 1); renderThumbs(); });
+  $("#thumbs").querySelectorAll("img").forEach((im) => im.onclick = () => { const [x] = images.splice(+im.dataset.i, 1); images.unshift(x); renderThumbs(); });
+  updateCounts();
+}
+function openEditor(post) {
+  editing = post || null;
+  $("#editor-title").textContent = post ? "编辑笔记" : "新建笔记";
+  $("#f-account").innerHTML = `<option value="">— 选择账号 —</option>` + accounts.map((a) => `<option value="${a.id}">${esc(a.name)}（${STATUS[a.status] || a.status}）</option>`).join("");
+  $("#f-account").value = post?.account_id ?? (accounts[0]?.id ?? "");
+  $("#f-title").value = post?.title ?? ""; $("#f-body").value = post?.body ?? "";
+  $("#f-tags").value = (post?.tags ?? []).join(" ");
+  images = [...(post?.images ?? [])];
+  const d = post?.scheduled_at ? new Date(post.scheduled_at) : new Date(Date.now() + 3600e3);
+  $("#f-when").value = new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16);
+  renderThumbs(); $("#editor").showModal();
+}
+function formData() {
+  return { account_id: $("#f-account").value ? +$("#f-account").value : null, title: $("#f-title").value.trim(), body: $("#f-body").value,
+    tags: $("#f-tags").value.split(/[,，\s]+/).filter(Boolean), images };
+}
+async function save() {
+  const data = formData();
+  editing = editing ? await api(`/api/posts/${editing.id}`, { method: "PUT", json: data }) : await api("/api/posts", { method: "POST", json: data });
+  return editing;
+}
+$("#new-post").onclick = () => openEditor(null);
+$("#close-editor").onclick = () => $("#editor").close();
+$("#f-title").oninput = updateCounts; $("#f-body").oninput = updateCounts;
+$("#f-files").onchange = async (e) => {
+  const fd = new FormData(); [...e.target.files].forEach((f) => fd.append("files", f));
+  try { const r = await api("/api/uploads", { method: "POST", body: fd }); images.push(...r.files); renderThumbs(); } catch (err) { toast(err.message); }
+  e.target.value = "";
+};
+$("#save-draft").onclick = async () => { try { await save(); toast("草稿已保存"); $("#editor").close(); refresh(); } catch (e) { toast(e.message); } };
+$("#save-schedule").onclick = async () => {
+  if (!$("#f-when").value) return toast("请选择发布时间");
+  const when = new Date($("#f-when").value);
+  if (when < new Date()) return toast("发布时间需晚于现在");
+  try { const p = await save(); await api(`/api/posts/${p.id}/schedule`, { method: "POST", json: { scheduled_at: when.toISOString() } }); toast("已加入定时发布"); $("#editor").close(); refresh(); } catch (e) { toast(e.message); }
+};
+$("#save-publish").onclick = async () => {
+  if (!confirm("确认立即发布到小红书？")) return;
+  try { const p = await save(); await api(`/api/posts/${p.id}/publish`, { method: "POST" }); toast("开始发布，可在列表和日志中查看进度"); $("#editor").close(); refresh(); } catch (e) { toast(e.message); refresh(); }
+};
+$("#ai-run").onclick = async () => {
+  const topic = $("#ai-topic").value.trim(); if (!topic) return toast("请先填写主题");
+  const b = $("#ai-run"); b.disabled = true; b.textContent = "生成中…";
+  try {
+    const d = await api("/api/ai/draft", { method: "POST", json: { topic, style: $("#ai-style").value, notes: $("#ai-notes").value } });
+    $("#f-title").value = d.title; $("#f-body").value = d.body; $("#f-tags").value = d.tags.join(" "); updateCounts(); toast("草稿已生成，请检查修改");
+  } catch (e) { toast(e.message); } finally { b.disabled = false; b.textContent = "生成草稿"; }
+};
+$("#account-form").onsubmit = (e) => {
+  e.preventDefault(); const f = new FormData(e.target);
+  act(() => api("/api/accounts", { method: "POST", json: { name: f.get("name"), note: f.get("note") } }).then(() => e.target.reset()), "已添加账号");
+};
+
+(async () => { settings = await api("/api/settings"); await refresh(); setInterval(() => { if (!$("#editor").open) refresh(); }, 10000); })();
+</script>
+</body>
+</html>
