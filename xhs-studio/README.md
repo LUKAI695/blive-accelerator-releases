@@ -15,6 +15,10 @@
 
 ## 安装与启动（macOS / Windows / Linux）
 
+**最简单：** 安装好 Python 3.10+ 后，macOS 双击 `start.command`，Windows 双击 `start.bat`。第一次运行会自动安装依赖，之后会打开浏览器。（macOS 如果提示无法打开，就右键 `start.command` 选择“打开”。）
+
+手动安装：
+
 需要 Python 3.10 或更高版本。
 
 ```bash
