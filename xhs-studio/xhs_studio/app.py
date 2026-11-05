@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -104,6 +104,7 @@ def create_app(settings: Settings | None = None, publisher: Publisher | None = N
     def index():
         return FileResponse(STATIC_DIR / "index.html")
 
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
     app.mount("/uploads", StaticFiles(directory=settings.uploads_dir), name="uploads")
     app.mount("/screenshots", StaticFiles(directory=settings.screenshots_dir), name="screenshots")
 
@@ -223,6 +224,73 @@ def create_app(settings: Settings | None = None, publisher: Publisher | None = N
         if post["status"] == "publishing":
             raise HTTPException(409, "发布中的帖子不能删除")
         db.delete_post(post_id)
+
+    @app.post("/api/posts/import", status_code=201)
+    async def import_posts(
+        csv_file: UploadFile = File(...),
+        images: list[UploadFile] = File(default=[]),
+        account_id: int | None = Form(default=None),
+        start_at: datetime | None = Form(default=None),
+        interval_minutes: int | None = Form(default=None),
+    ):
+        from .importer import ImportFormatError, parse_csv, plan_slots
+
+        if account_id is not None:
+            get_account_or_404(account_id)
+        try:
+            rows = parse_csv(await csv_file.read())
+        except ImportFormatError as exc:
+            raise HTTPException(400, str(exc)) from exc
+
+        interval = settings.min_interval_minutes if interval_minutes is None else interval_minutes
+        if interval < settings.min_interval_minutes:
+            raise HTTPException(400, f"间隔不能小于 {settings.min_interval_minutes} 分钟（账号节奏限制）")
+        if start_at is not None and to_iso(start_at) < to_iso(utcnow()):
+            raise HTTPException(400, "开始时间需晚于现在")
+
+        # 保存随 CSV 一起上传的图片，按原文件名（不区分大小写）匹配
+        stored: dict[str, str] = {}
+        for f in images:
+            original = Path(f.filename or "").name
+            ext = Path(original).suffix.lower()
+            if ext not in IMAGE_EXTS:
+                raise HTTPException(400, f"不支持的图片格式：{original}")
+            data = await f.read()
+            if len(data) > MAX_IMAGE_BYTES:
+                raise HTTPException(400, f"图片过大（>20MB）：{original}")
+            name = f"{uuid.uuid4().hex}{ext}"
+            (settings.uploads_dir / name).write_bytes(data)
+            stored[original.lower()] = name
+
+        results, ready = [], []
+        for row in rows:
+            image_names = []
+            for ref in row.image_names:
+                hit = stored.get(Path(ref).name.lower())
+                if hit:
+                    image_names.append(hit)
+                else:
+                    row.problems.append(f"没有上传图片 {ref}")
+            post = db.create_post(account_id=account_id, title=row.title, body=row.body,
+                                  tags=_clean_tags(row.tags), images=image_names)
+            problems = row.problems + validate_post(post, settings)
+            entry = {"line": row.line, "post_id": post["id"], "title": row.title,
+                     "status": "draft", "scheduled_at": None, "problems": problems}
+            results.append(entry)
+            if not problems:
+                ready.append(entry)
+
+        if start_at is not None and ready:
+            slots = plan_slots(start_at, len(ready), interval_minutes=interval,
+                               daily_limit=settings.daily_limit)
+            for entry, when in zip(ready, slots):
+                iso = to_iso(when)
+                db.update_post(entry["post_id"], status="scheduled", scheduled_at=iso)
+                entry.update(status="scheduled", scheduled_at=iso)
+
+        scheduled = sum(1 for r in results if r["status"] == "scheduled")
+        db.log(f"批量导入 {len(results)} 篇，其中 {scheduled} 篇已排期", account_id=account_id)
+        return {"created": len(results), "scheduled": scheduled, "rows": results}
 
     @app.post("/api/posts/{post_id}/schedule")
     def schedule_post(post_id: int, body: ScheduleIn):

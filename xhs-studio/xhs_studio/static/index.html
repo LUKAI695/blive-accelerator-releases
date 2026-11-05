@@ -83,6 +83,7 @@
     <div class="row" style="margin-top:16px">
       <div class="row filters" id="filters"></div>
       <div class="spacer"></div>
+      <button class="btn" id="open-import">批量导入</button>
       <button class="btn primary" id="new-post">＋ 新建笔记</button>
     </div>
     <div class="grid" id="post-list"></div>
@@ -137,6 +138,31 @@
       <button type="button" class="btn primary" id="save-publish">立即发布</button>
       <div class="spacer"></div>
       <button type="button" class="btn" id="close-editor">关闭</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="importer">
+  <form method="dialog" id="import-form">
+    <div class="dlg-head">批量导入笔记</div>
+    <div class="dlg-body">
+      <p class="muted" style="margin:0">用 Excel 编辑表格后“另存为 CSV”。表头：<b>标题</b>（必填）、<b>正文</b>、<b>话题</b>（空格分隔）、<b>图片</b>（文件名，多张用 | 分隔，第一张为封面）。
+        <a href="/static/import-template.csv" download>下载模板</a></p>
+      <label>CSV 文件<input type="file" id="i-csv" accept=".csv,text/csv" required></label>
+      <label>图片（一次选中表格里用到的全部图片）<input type="file" id="i-images" accept=".jpg,.jpeg,.png,.webp" multiple></label>
+      <label>发布账号<select id="i-account"></select></label>
+      <label class="row" style="display:flex"><input type="checkbox" id="i-schedule" style="width:auto"> 导入后自动排期（不勾选则全部存为草稿）</label>
+      <div class="row" id="i-schedule-opts">
+        <label style="flex:1">第一篇发布时间<input type="datetime-local" id="i-start"></label>
+        <label style="flex:1">每篇间隔（分钟）<input type="number" id="i-interval" min="1"></label>
+      </div>
+      <p class="muted" id="i-hint" style="margin:0"></p>
+      <div id="i-result"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="btn primary" id="i-run">开始导入</button>
+      <div class="spacer"></div>
+      <button type="button" class="btn" id="i-close">关闭</button>
     </div>
   </form>
 </dialog>
@@ -281,6 +307,47 @@ async function save() {
   return editing;
 }
 $("#new-post").onclick = () => openEditor(null);
+
+// ---------- batch import ----------
+function localInput(d) { return new Date(d.getTime() - d.getTimezoneOffset() * 60e3).toISOString().slice(0, 16); }
+$("#open-import").onclick = () => {
+  $("#i-account").innerHTML = `<option value="">— 选择账号 —</option>` + accounts.map((a) => `<option value="${a.id}">${esc(a.name)}</option>`).join("");
+  $("#i-account").value = accounts[0]?.id ?? "";
+  $("#i-start").value = localInput(new Date(Date.now() + 3600e3));
+  $("#i-interval").min = settings.min_interval_minutes;
+  $("#i-interval").value = Math.max(settings.min_interval_minutes, 180);
+  $("#i-schedule").checked = false; $("#i-schedule-opts").classList.add("hidden");
+  $("#i-hint").textContent = `排期会自动遵守节奏限制：每篇至少间隔 ${settings.min_interval_minutes} 分钟，任意 24 小时最多 ${settings.daily_limit} 篇，超出的自动顺延。`;
+  $("#i-result").innerHTML = ""; $("#i-csv").value = ""; $("#i-images").value = "";
+  $("#importer").showModal();
+};
+$("#i-schedule").onchange = () => $("#i-schedule-opts").classList.toggle("hidden", !$("#i-schedule").checked);
+$("#i-close").onclick = () => $("#importer").close();
+$("#i-run").onclick = async () => {
+  const csvFile = $("#i-csv").files[0];
+  if (!csvFile) return toast("请选择 CSV 文件");
+  const fd = new FormData();
+  fd.append("csv_file", csvFile);
+  [...$("#i-images").files].forEach((f) => fd.append("images", f));
+  if ($("#i-account").value) fd.append("account_id", $("#i-account").value);
+  if ($("#i-schedule").checked) {
+    if (!$("#i-account").value) return toast("自动排期需要先选择账号");
+    const start = new Date($("#i-start").value);
+    if (!(start > new Date())) return toast("第一篇发布时间需晚于现在");
+    fd.append("start_at", start.toISOString());
+    fd.append("interval_minutes", $("#i-interval").value);
+  }
+  const b = $("#i-run"); b.disabled = true; b.textContent = "导入中…";
+  try {
+    const r = await api("/api/posts/import", { method: "POST", body: fd });
+    const bad = r.rows.filter((x) => x.problems.length);
+    $("#i-result").innerHTML = `<div class="card"><b>已导入 ${r.created} 篇，排期 ${r.scheduled} 篇</b>
+      <table style="margin-top:8px"><tr><th>行</th><th>标题</th><th>结果</th></tr>${r.rows.map((x) => `<tr><td>${x.line}</td><td>${esc(x.title) || "（无标题）"}</td>
+      <td>${x.problems.length ? `<span class="err">草稿：${esc(x.problems.join("；"))}</span>` : x.scheduled_at ? "定时 " + fmt(x.scheduled_at) : "草稿"}</td></tr>`).join("")}</table>
+      ${bad.length ? `<p class="muted">有问题的 ${bad.length} 篇已存为草稿，可在列表里编辑后再发布。</p>` : ""}</div>`;
+    refresh();
+  } catch (e) { toast(e.message); } finally { b.disabled = false; b.textContent = "开始导入"; }
+};
 $("#close-editor").onclick = () => $("#editor").close();
 $("#f-title").oninput = updateCounts; $("#f-body").oninput = updateCounts;
 $("#f-files").onchange = async (e) => {
